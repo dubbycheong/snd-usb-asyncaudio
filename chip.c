@@ -138,7 +138,12 @@ static int hiface_chip_probe(struct usb_interface *intf,
 
 	snd_card_set_dev(chip->card, &intf->dev);
 
-	ret = hiface_pcm_init(chip, quirk ? quirk->extra_freq : 0);
+	// Dubby '14.03.16 Chord Qute Ex endian swap.
+	if((usb_id->idVendor == 0x245f) && (usb_id->idProduct == 0x0813))
+		ret = hiface_pcm_init(chip, quirk ? quirk->extra_freq : 0, 0);
+	else
+		ret = hiface_pcm_init(chip, quirk ? quirk->extra_freq : 0, 1);
+
 	if (ret < 0)
 		goto err_chip_destroy;
 
@@ -276,6 +281,15 @@ static const struct usb_device_id device_table[] = {
 			.device_name = "CHORD",
 		}
 	},
+        {
+//  USB data bits are reversed on the QuteEX product compared to the QuteHD and QBD76HD.		
+                USB_DEVICE(0x245f, 0x0813),
+                .driver_info = (unsigned long)&(const struct hiface_vendor_quirk) {
+                        .device_name = "Chord QuteEX",
+			.extra_freq = 1,
+                }
+        },
+
 	{
 		USB_DEVICE(0x25c6, 0x9002),
 		.driver_info = (unsigned long)&(const struct hiface_vendor_quirk) {

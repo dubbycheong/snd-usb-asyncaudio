@@ -113,6 +113,8 @@ static const struct snd_pcm_hardware pcm_hw = {
 #define HIFACE_RATE_352800 0x58
 #define HIFACE_RATE_384000 0x68
 
+int swap_endian=0;
+
 static int hiface_pcm_set_rate(struct pcm_runtime *rt, unsigned int rate)
 {
 	struct usb_device *device = rt->chip->dev;
@@ -275,7 +277,11 @@ static bool hiface_pcm_playback(struct pcm_substream *sub, struct pcm_urb *urb)
 			 (unsigned int) sub->dma_off);
 
 		source = alsa_rt->dma_area + sub->dma_off;
-		memcpy_swahw32(urb->buffer, source, PCM_PACKET_SIZE);
+
+		if(swap_endian)
+		  memcpy_swahw32(urb->buffer, source, PCM_PACKET_SIZE);
+		else
+		  memcpy(urb->buffer,source,PCM_PACKET_SIZE) ;
 	} else {
 		/* wrap around at end of ring buffer */
 		unsigned int len;
@@ -287,11 +293,18 @@ static bool hiface_pcm_playback(struct pcm_substream *sub, struct pcm_urb *urb)
 		len = pcm_buffer_size - sub->dma_off;
 
 		source = alsa_rt->dma_area + sub->dma_off;
-		memcpy_swahw32(urb->buffer, source, len);
+		if(swap_endian)
+		  memcpy_swahw32(urb->buffer, source, len);
+ 		else
+		  memcpy(urb->buffer,source,len) ;
 
 		source = alsa_rt->dma_area;
-		memcpy_swahw32(urb->buffer + len, source,
+		if(swap_endian)
+		  memcpy_swahw32(urb->buffer + len, source,
 			       PCM_PACKET_SIZE - len);
+		else
+		  memcpy(urb->buffer+len,source,PCM_PACKET_SIZE - len) ;
+
 	}
 	sub->dma_off += PCM_PACKET_SIZE;
 	if (sub->dma_off >= pcm_buffer_size)
@@ -577,7 +590,7 @@ static void hiface_pcm_free(struct snd_pcm *pcm)
 		hiface_pcm_destroy(rt->chip);
 }
 
-int hiface_pcm_init(struct hiface_chip *chip, u8 extra_freq)
+int hiface_pcm_init(struct hiface_chip *chip, u8 extra_freq, u8 swap)
 {
 	int i;
 	int ret;
@@ -592,6 +605,11 @@ int hiface_pcm_init(struct hiface_chip *chip, u8 extra_freq)
 	rt->stream_state = STREAM_DISABLED;
 	if (extra_freq)
 		rt->extra_freq = 1;
+
+	if(swap)
+		swap_endian=1;
+	else
+		swap_endian=0;
 
 	init_waitqueue_head(&rt->stream_wait_queue);
 	mutex_init(&rt->stream_mutex);
